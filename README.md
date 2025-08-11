@@ -54,6 +54,28 @@ SGLANG_SERVER_CMD='python3 -m sglang.launch_server --host 0.0.0.0 --port 30000 \
 
 If you’re instead pointing to an external SGLang service, leave `SGLANG_SERVER_CMD` empty and set `SGLANG_BASE_URL` to that service.
 
+### Qwen3 480B FP8 preset
+
+We provide a preset Dockerfile for Qwen/Qwen3-480B-A35B-Instruct-FP8 with recommended launch flags (tp=8, ep-moe, long context):
+
+```sh
+docker build -f Dockerfile.qwen480b --platform linux/amd64 \
+  -t <your-dockerhub-username>/runpod-sglang-qwen480b:latest .
+docker push <your-dockerhub-username>/runpod-sglang-qwen480b:latest
+```
+
+The image will start a local SGLang server with:
+
+```sh
+python3 -m sglang.launch_server \
+  --model-path Qwen/Qwen3-480B-A35B-Instruct-FP8 \
+  --tp 8 --enable-ep-moe --context-length 262144 --trust-remote-code
+```
+
+Reference: <https://deepwiki.com/guquan/Qwen3/2.4-sglang-deployment>
+
+Note: This model has very high GPU and memory requirements. Ensure your RunPod instance type can satisfy TP=8 and EP MoE configurations.
+
 ### About pre-downloading models
 
 This worker proxies to an external SGLang server; model weights are owned and loaded by that server. If you want to avoid first-request download/compile latency, pre-bake the model into the SGLang server image during its Docker build (e.g., copy weights into the image, or run a setup script that downloads to the expected cache path). As a secondary option, this worker supports a warm-up call at startup to trigger model loading on the server:
