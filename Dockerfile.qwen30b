@@ -29,5 +29,8 @@ ENV SGLANG_PORT=30000 \
     SGLANG_HEALTH_INTERVAL=1.5 \
     SGLANG_TIMEOUT=600
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+    CMD python3 -c "import sglang, pybase64; print('ok')" || exit 1
+
 EXPOSE 30000
 CMD ["./start.sh"]

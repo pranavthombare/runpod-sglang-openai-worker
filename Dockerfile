@@ -20,4 +20,8 @@ ENV SGLANG_BASE_URL="" \
     SGLANG_MODEL="" \
     SGLANG_TIMEOUT=300
 
+# Lightweight healthcheck: verify core deps import
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import runpod, requests, pybase64; print('ok')" || exit 1
+
 CMD ["./start.sh"]
