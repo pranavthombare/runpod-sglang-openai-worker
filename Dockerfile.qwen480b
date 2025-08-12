@@ -13,8 +13,10 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Install sglang and CUDA-enabled torch; consider pinning versions per your cluster
-RUN python3 -m pip install --no-cache-dir "sglang[all]" torch --extra-index-url https://download.pytorch.org/whl/cu124
+# Install build tooling, CUDA-enabled torch, and sglang without optional extras to avoid vLLM source builds
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+ && python3 -m pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cu124 \
+ && python3 -m pip install --no-cache-dir sglang
 
 COPY handler.py sglang_client.py start.sh ./
 RUN chmod +x start.sh

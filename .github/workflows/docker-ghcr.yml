@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - name: default
@@ -31,9 +32,21 @@ jobs:
           - name: qwen480b
             file: Dockerfile.qwen480b
             tag: qwen480b
+          - name: qwen30b
+            file: Dockerfile.qwen30b
+            tag: qwen30b-tp1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Free disk space on runner (optional)
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /opt/hostedtoolcache/go || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /opt/ghc || true
+          docker system prune -af || true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -57,27 +70,39 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ matrix.tag }}-${{ github.sha }}
           provenance: false
           sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # Optional: ping RunPod to trigger an endpoint refresh after images are pushed
-  trigger-runpod-refresh:
-    if: ${{ success() }}
+      - name: Prune builder cache
+        run: docker buildx prune -af || true
+
+  smoke-test:
     needs: build-and-push
     runs-on: ubuntu-latest
-    env:
-      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-      RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: latest
+            import_cmd: "import runpod, requests, pybase64; print('ok minimal')"
+          - tag: gpu
+            import_cmd: "import sglang, pybase64; print('ok sglang')"
+          - tag: qwen480b
+            import_cmd: "import sglang, pybase64; print('ok sglang')"
+          - tag: qwen30b-tp1
+            import_cmd: "import sglang, pybase64; print('ok sglang')"
     steps:
-      - name: Skip if no RunPod secrets
-        if: ${{ env.RUNPOD_API_KEY == '' || env.RUNPOD_ENDPOINT_ID == '' }}
-        run: echo "RUNPOD_API_KEY/ENDPOINT_ID not set; skipping RunPod trigger"
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Trigger RunPod endpoint refresh (best-effort)
-        if: ${{ env.RUNPOD_API_KEY != '' && env.RUNPOD_ENDPOINT_ID != '' }}
+      - name: Pull image
+        run: docker pull ghcr.io/${{ github.repository }}:${{ matrix.tag }}
+
+      - name: Import check
         run: |
-          set -euo pipefail
-          echo "Triggering RunPod endpoint refresh for $RUNPOD_ENDPOINT_ID"
-          curl -sS -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-            -d '{"endpointId":"'"${RUNPOD_ENDPOINT_ID}"'"}' \
-            https://api.runpod.io/v2/serverless/refresh || true
+          docker run --rm ghcr.io/${{ github.repository }}:${{ matrix.tag }} \
+            python3 -c "${{ matrix.import_cmd }}"

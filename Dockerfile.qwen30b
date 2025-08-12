@@ -13,7 +13,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Install build tooling, CUDA-enabled torch, then sglang (without extras to avoid vLLM source builds)
+# Install build tooling, CUDA-enabled torch, and sglang without optional extras to avoid vLLM source builds
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel \
  && python3 -m pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cu124 \
  && python3 -m pip install --no-cache-dir sglang
@@ -21,16 +21,13 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel \
 COPY handler.py sglang_client.py start.sh ./
 RUN chmod +x start.sh
 
-ENV SGLANG_BASE_URL="" \
-    SGLANG_MODEL="" \
-    SGLANG_TIMEOUT=300 \
-    SGLANG_PORT=30000 \
-    # Optional: if set, we start a local SGLang server before the worker
-    SGLANG_SERVER_CMD="" \
-    MODEL_PATH="/models" \
-    SGLANG_EXTRA_ARGS="--trust-remote-code --tp 1" \
-    SGLANG_HEALTH_TIMEOUT=180 \
-    SGLANG_HEALTH_INTERVAL=1.5
+# Qwen3 30B A3B FP8 preset
+ENV SGLANG_PORT=30000 \
+    MODEL_PATH="Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8" \
+    SGLANG_EXTRA_ARGS="--tp 1 --context-length 131072 --trust-remote-code" \
+    SGLANG_HEALTH_TIMEOUT=300 \
+    SGLANG_HEALTH_INTERVAL=1.5 \
+    SGLANG_TIMEOUT=600
 
 EXPOSE 30000
 CMD ["./start.sh"]
